@@ -39,56 +39,7 @@ dist(368078)
 # 351   11   23   25   26                         -1
 # 362  747  806--->   ...
 
-# keep track of ring number and ring idx in loop.  If we're in ring r, each side
-# is 2*r long.  "side index" is idx % (2*r)
-
-# middle of side: shift one off, push one on.
-# one before corner side_idx==2*r-1: shift one off.
-# corner side_idx==0: shift one off
-# after corner side_idx==1: push one on, unshift one from outer ring
-
-# special cases:
-# start of new ring: move new rnig to old ring. seed old ring context with [0,
-# last[end], last[1]].
-# end of ring: AGH you need to manage the wrap around. so that the start of the
-# current ring gets picked up at the end.  so when ring_idx == 8*r-1 pick up
-# cur[1]
-
-# an iterator
-mutable struct FibSpiral
-    cur::Vector{Int}
-    prev::Vector{Int}
-    neighbors::Vector{Int}
-end
-
-using Base: start, next, done
-function start(f::FibSpiral)
-    f.cur=Int[]
-    f.prev=[1]
-    neighbors=[1]
-    (1, 1)                      # ring number, within-ring idx
-end
-
-function next(f::FibSpiral, state::Tuple{Int})
-    r, idx = state
-    side_idx = idx % 2r
-    # compute current value
-    
-end
-
-done(::FibSpiral, state) = false       # never done spiraling
-
-# fuck this. just do it directly.  use an offset array and an iterator to
-# generate cartesian indices
-
-# what ring are we in 
-function spiral2xy(idx::Int)
-    r = rind_dist(idx)
-    spoke_idx = spoke_i(idx)
-    side_number = spoke_idx ÷ (2r)
-end
-
-
+import Base: start, next, done
 
 mutable struct Spiral
     heading::NTuple{2,Int}
@@ -106,40 +57,51 @@ turn!(s::Spiral) = (s.heading = (s.heading[2], s.heading[1]) .* (-1)^s.heading[2
 Spiral() = Spiral((0,1))
 
 done(::Spiral, state) = false
-start(::Spiral) = (1,0)
+start(::Spiral) = (0,0)
 function next(s::Spiral, state::NTuple{2,Int})
     # are we at end of a ring?
     if abs(state[1]) == abs(state[2])
-        if all(sign.(state) .== -1)
-            state .+= s.heading
+        if state[1] ≥ 0 && state[2] ≥ 0
+            state = state .+ s.heading
             turn!(s)
         else
             turn!(s)
-            state .+= s.heading
+            state = state .+ s.heading
         end
     else
-        state .+= s.heading
+        state = state .+ s.heading
     end
     return state, state
 end
 
+Base.iteratorsize(::Type{Spiral}) = Base.IsInfinite()
+
+using OffsetArrays
+grid = OffsetArray(Int, -3:3, -3:3)
+fill!(grid, 0)
+grid[0,0] = 1
+
+for (i, xy) in enumerate(Iterators.take(Spiral(), 24))
+    x, y = xy
+    grid[xy...] = sum(grid[(x-1):(x+1), (y-1):(y+1)])
+    @show i, grid[xy...]
+end
 
 
-# we have two sources: prev. ring and current ring.
-#
-# prev ring: start iwith [last, first].  to move, shift one on, except moving
-# onto corner or before.  shift one off, except when moving off corner or one
-# after.
-#
-# current ring start empty.  compute value based on current context.  always
-# push on
 
 
-# shift one on.  first one on a new ring: we have last and first of last ring.
-# generally shift one on, one off. except that when you arrive a corner
+input = 368078
+grid_size = round(Int, ceil(sqrt(input))) ÷ 2
+grid = OffsetArray(Int, -grid_size:grid_size, -grid_size:grid_size)
+fill!(grid, 0)
+grid[0,0] = 1
 
+s = Spiral()
+x,y = start(s)
 
-# alternatively, explicitly compute which indices are adjacent in this and
-# prev. ring.  take ring index 1:(2r+1)^2.  convert to spoke distance, get
-# neighbors +/-1.  if neighbors spoke dist is more than max of previous ring,
-# truncate.
+while grid[x,y] ≤ input
+    @show (x,y), _ = next(s, (x,y))
+    grid[x,y] = sum(grid[(x-1):(x+1), (y-1):(y+1)])
+end
+
+output = grid[x,y]
