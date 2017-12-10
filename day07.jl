@@ -30,4 +30,29 @@ while any(edges[name, :])
     name = findfirst(edges[name, :])
 end
 
-find(edges[names[1], :])
+@show root_idx, root = name, names[name]
+
+# star 2: unbalanced.  find the one disk who's weight needs to be changed to
+# balance
+weights = NamedVector([parse(Int, i[2]) for i in input])
+setnames!(weights, String.(names), 1)
+
+# do a depth first search, recursively check whether a disk is balanced based on
+# its children.  compute weight and whether balanced for each one
+
+function w(idx, weights, edges)
+    children = find(edges[:,idx])
+    child_weights = Int[w(n, weights, edges) for n in children]
+    if !all(x->x==child_weights[1], child_weights)
+        @show child_weights, children
+        error()
+    end
+    weights[idx] + sum(child_weights)
+end
+
+
+
+w(root_idx, weights, edges)
+weights_balanced = copy(weights)
+weights_balanced[988] -= 9
+w(root_idx, weights_balanced, edges)
