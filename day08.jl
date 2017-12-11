@@ -22,16 +22,17 @@ Base.setindex!(r::Registers{S,T}, val::T, key::S) where {S,T} =
 inst_map = Dict(:inc => :+=,
                 :dec => :-=)
 
+ref_expr(r::Symbol, s::Symbol) = Expr(:ref, :r, QuoteNode(s))
 
 function (r::Registers)(inst::AbstractString)
     inst, cond = split(inst, " if ")
     reg, inst, by, = parse.(split(inst))
     cond = parse(cond)
     # parse cond: replace comparison LHS with r[] reference
-    cond.args[2] = Expr(:ref, :r, QuoteNode(cond.args[2]))
+    cond.args[2] = ref_expr(:r, cond.args[2])
     if eval(cond)
         # parse instruction: replace inc/dec with +/-=, and register with r[] ref
-        eval(Expr(inst_map[inst], Expr(:ref, :r, QuoteNode(reg)), by))
+        eval(Expr(inst_map[inst], ref_expr(:r, reg), by))
     end
     r
 end
