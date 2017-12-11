@@ -10,14 +10,18 @@
 
 mutable struct Registers{S,T}
     registers::Dict{S,T}
-    Registers{S,T}() where {S,T} = new(Dict{S,T}())
+    max::T
+    Registers{S,T}() where {S,T} = new(Dict{S,T}(), zero(T))
 end
 
 Base.getindex(r::Registers{S,T}, key::S) where {S,T} =
     get(r.registers, key, zero(T))
-Base.setindex!(r::Registers{S,T}, val::T, key::S) where {S,T} =
+function Base.setindex!(r::Registers{S,T}, val::T, key::S) where {S,T} 
+    if val > r.max
+        r.max = val
+    end
     setindex!(r.registers, val, key)
-
+end
 
 inst_map = Dict(:inc => :+=,
                 :dec => :-=)
@@ -46,7 +50,7 @@ instructions = [
     "c inc -20 if c == 10"
 ]
 r.(instructions)
-
+r.max
 
 r = Registers{Symbol, Int64}()
 for l in eachline("day08.input")
@@ -54,3 +58,4 @@ for l in eachline("day08.input")
 end
 
 maximum(values(r.registers))
+r.max
