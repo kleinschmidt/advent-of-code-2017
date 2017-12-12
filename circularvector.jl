@@ -13,7 +13,7 @@ CircularVector(elements::Vector{T}, first_i::Int) where T =
 
 circindex(cv::CircularVector, idx::Int) = mod(idx-cv.first_i, cv.length) + cv.first_i
 
-import Base: linearindices, getindex, setindex!, show, display, size
+import Base: linearindices, getindex, setindex!, show, showcompact, display, size
 
 size(cv::CircularVector) = size(cv.elements)
 
@@ -23,5 +23,6 @@ getindex(cv::CircularVector, idx::Int) = cv.elements[circindex(cv, idx)]
 setindex!(cv::CircularVector{T}, val::T, idx::Int) where T =
     setindex!(cv.elements, val, circindex(cv, idx))
 
-display(cv::CircularVector{T}) where T = display(cv.elements)
-show(cv::CircularVector{T}, io) where T = show(cv.elements, io)
+display(cv::CircularVector) = display(cv.elements)
+show(io::IO, cv::CircularVector) = show(io, cv.elements)
+showcompact(io::IO, cv::CircularVector) = showcompact(io, cv.elements)
