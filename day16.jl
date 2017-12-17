@@ -15,9 +15,9 @@ mutable struct Programs
     programs::Vector{Char}
     shift::Int
     n::Int
-    revindex::Dict{Char,Int}
+    revindex::Vector{Int}
     Programs(ps::Vector{Char}) =
-        new(ps, 0, length(ps), Dict(j=>i for (i,j) in enumerate(ps)))
+        new(ps, 0, length(ps), collect(1:length(ps)))
 end
 
 Base.show(io::IO, p::Programs) =
@@ -29,15 +29,15 @@ s(p::Programs, n::Int) = (p.shift = (p.shift+n)%p.n; p)
 function x(p::Programs, a::Int, b::Int)
     a, b = mod.((a,b) .- p.shift, p.n) .+ 1
     p.programs[a], p.programs[b] = p.programs[b], p.programs[a]
-    p.revindex[p.programs[a]] = a
-    p.revindex[p.programs[b]] = b
+    p.revindex[p.programs[a]-'`'] = a
+    p.revindex[p.programs[b]-'`'] = b
     return p
 end
 
-function p(p::Programs, a::Char, b::Char)
+function p(p::Programs, a::Int, b::Int)
     ai = p.revindex[a]
     bi = p.revindex[b]
-    p.programs[ai], p.programs[bi] = b, a
+    p.programs[ai], p.programs[bi] = b+'a'-1, a+'a'-1
     p.revindex[a] = bi
     p.revindex[b] = ai
     return p
@@ -47,11 +47,11 @@ function parse_inst(inst::AbstractString)
     op = eval(Symbol(inst[1]))
     args = (split(inst[2:end], '/')...)
     if op == p
-        args = getindex.(args, 1)
+        args = getindex.(args, 1) .- 'a' .+ 1
     else
         args = parse.(Int, args)
     end
-    op, args
+    @eval (x) -> $op(x, $args...)
 end
 
 
@@ -62,11 +62,23 @@ function dance!(ps::Programs, instructions::Vector)
     ps
 end
 
+function dance!(ps::Programs, instructions::Vector{Function})
+    for i in instructions
+        i(ps)
+    end
+    ps
+end
+
+
 
 test_str = "s1,x3/4,pe/b" 
 instructions_test = parse_inst.(split(test_str, ","))
 x_test = Programs(collect('a':'e'))
 dance!(x_test, instructions_test)
+
+for i in instructions_test
+    i(x_test)
+end
 
 
 
