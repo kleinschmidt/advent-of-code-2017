@@ -23,54 +23,64 @@ end
 Base.show(io::IO, p::Programs) =
     println(io, "Programs: $(String(circshift(p.programs, p.shift)))")
 
-s(p::Programs, n::Int) = (p.shift += 
 
+s(p::Programs, n::Int) = (p.shift = (p.shift+n)%p.n; p)
 
-
-function step!(x, inst)
-    if inst[1] == 's'
-        x .= circshift(x, parse(Int, inst[2:end]))
-    elseif inst[1] == 'x'
-        a, b = parse.(Int, split(inst[2:end], "/")) .+ 1
-        x[a], x[b] = x[b], x[a]
-    else                        # p: exchange positions
-        a, b = inst[2], inst[end]
-        ai = findfirst(x, a)
-        bi = findfirst(x, b)
-        x[ai], x[bi] = x[bi], x[ai]
-    end
-    x
+function x(p::Programs, a::Int, b::Int)
+    a, b = mod.((a,b) .- p.shift, p.n) .+ 1
+    p.programs[a], p.programs[b] = p.programs[b], p.programs[a]
+    p.revindex[p.programs[a]] = a
+    p.revindex[p.programs[b]] = b
+    return p
 end
+
+function p(p::Programs, a::Char, b::Char)
+    ai = p.revindex[a]
+    bi = p.revindex[b]
+    p.programs[ai], p.programs[bi] = b, a
+    p.revindex[a] = bi
+    p.revindex[b] = ai
+    return p
+end
+
+function parse_inst(inst::AbstractString)
+    op = eval(Symbol(inst[1]))
+    args = (split(inst[2:end], '/')...)
+    if op == p
+        args = getindex.(args, 1)
+    else
+        args = parse.(Int, args)
+    end
+    op, args
+end
+
+
+function dance!(ps::Programs, instructions::Vector)
+    for (op, args) in instructions
+        op(ps, args...)
+    end
+    ps
+end
+
 
 test_str = "s1,x3/4,pe/b" 
-instructions = split(test_str, ",")
-x = collect('a':'e')
-
-for inst in instructions
-    step!(x, inst)
-    println(inst, "\t", String(x))
-end
+instructions_test = parse_inst.(split(test_str, ","))
+x_test = Programs(collect('a':'e'))
+dance!(x_test, instructions_test)
 
 
-function dance!(x, instructions::Vector)
-    for inst in instructions
-        step!(x, inst)
-    end
-    x
-end
 
-
-x = collect('a':'p')
-instructions = split(chomp(readstring("day16.input")), ",")
-String(dance!(x, instructions))
+ps = Programs(collect('a':'p'))
+instructions = parse_inst.(split(chomp(readstring("day16.input")), ","))
+dance!(ps, instructions)
 
 using BenchmarkTools
-@benchmark dance!($x, $instructions)
+@benchmark dance!($ps, $instructions)
 
-@profile foreach((i)->dance!(x, instructions), 1:1_000_000)
+@profile foreach((i)->dance!(ps, instructions), 1:1_000)
 
-x = collect('a':'p')
+ps = Programs(collect('a':'p'))
 for i in 1:1_000_000_000
-    dance!(x, instructions)
+    dance!(ps, instructions)
     i % 1_000_000 == 0 && println(i)
 end
