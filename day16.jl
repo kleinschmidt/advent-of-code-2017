@@ -1,3 +1,5 @@
+using ArgCheck
+
 # instructions:
 # xA/B exchange items at positions A and B
 # sN take N from end and put at front (in same order)
@@ -139,16 +141,22 @@ insts = reduce(parse_inst!, Instructions('a':'p'), inst_strings)
 
 
 function parse_inst!(a::Instructions, b::Instructions)
-    a.order .= a.order[b.order]
+    @argcheck a.len == b.len
+    a.order = circshift(circshift(a.order, a.shift)[circshift(b.order, b.shift)],
+                        -b.shift - a.shift)
     a.shift += b.shift
     a.names .= a.names[b.names]
     a
 end
 
-insts_test_again = reduce(parse_inst!, Instructions('a':'e'),
-                          repeat(split(test_str, ','), outer=2))
+Base.run(is::Instructions, n::Int) = reduce(parse_inst!, Instructions(is.len),
+                                            Iterators.repeated(is, n))
 
-dump(insts_test)
-dump(insts_test_again)
+i2 = run(insts, 2)
+i4 = run(insts, 4)
+run(i2, 2)
 
-parse_inst!(insts_test, insts_test)
+ibil = run(insts, 10)
+for _ in 2:9
+    @show parse_inst!(ibil, ibil)
+end
