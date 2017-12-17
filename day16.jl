@@ -51,7 +51,7 @@ function parse_inst(inst::AbstractString)
     else
         args = parse.(Int, args)
     end
-    @eval (x) -> $op(x, $args...)
+    return op, args
 end
 
 
@@ -62,24 +62,10 @@ function dance!(ps::Programs, instructions::Vector)
     ps
 end
 
-function dance!(ps::Programs, instructions::Vector{Function})
-    for i in instructions
-        i(ps)
-    end
-    ps
-end
-
-
-
 test_str = "s1,x3/4,pe/b" 
 instructions_test = parse_inst.(split(test_str, ","))
 x_test = Programs(collect('a':'e'))
 dance!(x_test, instructions_test)
-
-for i in instructions_test
-    i(x_test)
-end
-
 
 
 ps = Programs(collect('a':'p'))
