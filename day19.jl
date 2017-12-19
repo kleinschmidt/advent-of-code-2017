@@ -33,6 +33,7 @@ function foo(path::Matrix{Char})
     pos = ind2sub(path, findfirst(path, '|'))
     heading = (0,1)
     c = path[pos...]
+    steps = 1
     while true
         # @show c, pos, heading
         if c == '+'
@@ -40,17 +41,18 @@ function foo(path::Matrix{Char})
             # ...not backwards
             pos, heading = turn(path, pos, heading)
             if isempty(pos)
-                return chars
+                return chars, steps
             end
             c = path[pos...]
         else
             c != '-' && c != '|' && push!(chars, c)
             pos = pos .+ heading
             if !checkbounds(Bool, path, pos...) || path[pos...] == ' '
-                return chars
+                return chars, steps
             end
             c = path[pos...]
         end
+        steps += 1
     end
 end
 
@@ -59,4 +61,4 @@ permutedims(path, (2,1))
 
 foo(path)
 
-String(parse_input(readlines("day19.input")) |> foo)
+parse_input(readlines("day19.input")) |> foo
