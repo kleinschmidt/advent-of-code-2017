@@ -1,6 +1,3 @@
-parse_insts(lines) = [(parse.(split(l))...) for l in lines]
-
-# insts = parse_insts(eachline("day18.input"))
 insts_test = """
 set a 1
 add a 2
@@ -14,17 +11,21 @@ set a 1
 jgz a -2
 """
 
+parse_insts(lines) = [(parse.(split(l))...) for l in lines]
 
 mutable struct Registers
     d::Dict{Symbol,Int}
     snd::Channel{Int}
     rcv::Channel{Int}
+    sent::Int
+    recieving::Bool
+    other::Union{Registers,Void}
     Registers(insts::Vector) = begin
         d = Dict{Symbol,Int}()
         for i in insts
             i[2] isa Symbol && setindex!(d, 0, i[2])
         end
-        new(d, Channel{Int}(Inf), Channel{Int}(Inf))
+        new(d, Channel{Int}(Inf), Channel{Int}(Inf), 0, false, nothing)
     end
 end
 
@@ -33,6 +34,8 @@ rcvd(rs::Registers) = rs.rcv > typemin(Int)
 Base.getindex(rs::Registers, s::Symbol) = rs.d[s]
 Base.getindex(rs::Registers, i::Int) = i
 Base.setindex!(rs::Registers, val::Int, key::Symbol) = setindex!(rs.d, val, key)
+
+const DONE = typemin(Int)
 
 # run one instruction, returning index offset
 function (r::Registers)(op::Symbol, args...)
@@ -49,15 +52,26 @@ function (r::Registers)(op::Symbol, args...)
             return r[args[2]]
         end
     elseif op == :rcv
-        if r[args[1]] > 0
-            ## only take the LAST one produced
-            rcvd = 0
-            while isready(r.snd)
-                rcvd = take!(r.snd)
-            end
-            put!(r.rcv, rcvd)
+        if !isready(r.other.snd) && r.other.recieving && !isready(r.snd)
+            # handle blocking here...
+            # this way might introduce a race condition...might need some kind
+            # of lock.  unlikely though?
+
+            # also, how to keep the other task from blocking???  maybe send a
+            # sentinel value to it here.
+            println("DONE (sender)")
+            put!(r.snd, DONE)
+            return
         end
+        r.recieving = true
+        r[args[1]] = take!(r.rcv)
+        if r[args[1]] == DONE
+            println("DONE (reciever)")
+            return
+        end
+        r.recieving = false
     elseif op == :snd
+        r.sent += 1
         put!(r.snd, r[args[1]])
     end
     return 1
@@ -71,7 +85,9 @@ function foo(out::Channel, insts)
     idx = 1
     while true
         ## @show idx, insts[idx]
-        idx += rs(insts[idx]...)
+        idx_inc = rs(insts[idx]...)
+        idx_inc === nothing && break
+        idx += idx_inc
     end
     rs
 end
@@ -97,3 +113,52 @@ close(c)
 # I think the way to do this is to have the instructions loop run inside a task
 # with a channel that will take the return value.  we need to know how many
 # times program 1 (second one) sends a value.
+#
+# each set of registers needs a way to check whether the other is trying to
+# receive.  so need to set a bit before the possibly blocking call to take!, and
+# keep a reference to the other around.
+#
+# other question is how to get the value out.  Maybe wrap both registers in a
+# task, and return from the function 
+
+
+function bar(rs, insts, n)
+    idx = 1
+    while (idx_inc = rs(insts[idx]...)) isa Int
+        # @show n, idx, insts[idx]
+        idx += idx_inc
+    end
+    return rs
+end
+
+function duet(insts)
+    r0 = Registers(insts)
+    r1 = Registers(insts)
+    r1[:p] = 1
+
+    r1.snd, r1.rcv = r0.rcv, r0.snd
+    r0.other, r1.other = r1, r0
+    @show r0, r1
+
+    @sync begin
+        @async bar(r0, insts, 0)
+        @async bar(r1, insts, 1)
+    end
+
+    return r0, r1
+end
+
+insts_test2 = 
+"""
+snd 1
+snd 2
+snd p
+rcv a
+rcv b
+rcv c
+rcv d
+""" |> chomp |> (x) -> split(x, "\n") |> parse_insts
+
+r0,r1 = duet(insts_test2)
+
+r0,r1 = eachline("day18.input") |> parse_insts |> duet
