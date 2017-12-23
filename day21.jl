@@ -29,13 +29,6 @@ function parse_input(lines)
     rules = Dict()
     for line in lines
         lhs, rhs = slash_to_mat.(split(line, " => "))
-        if size(rhs) == (4,4)
-            rhs = reshape([rhs[1:2, 1:2],
-                           rhs[3:4, 1:2],
-                           rhs[1:2, 3:4],
-                           rhs[3:4, 3:4]],
-                          (2,2))
-        end
         for l in fliprots(lhs)
             rules[l] = rhs
         end
@@ -48,7 +41,7 @@ rules_test = @_ test_input |>
     split(_, '\n') |>
     parse_input
 
-seed_test = ".#./..#/###" |> slash_to_mat
+seed = ".#./..#/###" |> slash_to_mat
 
 # represent grid as array of tiles...view of underlying array?
 #
@@ -62,17 +55,46 @@ seed_test = ".#./..#/###" |> slash_to_mat
 # always align (as long as we convert the 4×4s into 2×2s
 
 import Base.expand
-expand(tiles::Matrix, rules::Dict) = broadcast(expand, tiles, rules)
-expand(tile::Matrix{Char}, rules::Dict) = getindex(rules, tile)
 
 score(tiles::Matrix) = mapreduce(score, +, tiles)
 score(x::Char) = x=='#' ? 1 : 0
 
 rules = eachline("day21.input") |> parse_input
 
+# okay i was wrong; multiple of two rule takes precednece over multiple of 3 so
+# do need to merge tiles.  is there a clever way to do this?  start with 3×3,
+# then 4×4, then 6×6 (3×3 2 tiles), then 9×9
+
+function split_tiles(chrs::Matrix{Char})
+    rs, cs = size(chrs)
+    tile_sz = rs % 2 == 0 ? 2 : 3
+    inds = 1:tile_sz
+    offsets = 0:tile_sz:(rs-2)
+    [view(chrs, inds+i, inds+j) for i in offsets, j in offsets]
+end
+
+
+
+function merge_tiles(tiles)
+    tile_sz = size(tiles[1], 1)
+    rs, cs = tile_sz .* size(tiles)
+    chrs = Matrix{Char}(rs, cs)
+    for i in 1:size(tiles,1)
+        r_inds = (1:tile_sz) + (i-1)*tile_sz
+        for j in 1:size(tiles,2)
+            c_inds = (1:tile_sz) + (j-1)*tile_sz
+            chrs[r_inds, c_inds] .= tiles[i,j]
+        end
+    end
+    chrs
+end
+
+
+function expand(chrs::Matrix{Char}, rules)
+    tiles = split_tiles(chrs)
+    merge_tiles(getindex.(rules, tiles))
+end
+
 
 reduce(expand, seed, take(repeated(rules), 5)) |> score
-
-
-
-reduce(expand, seed_test, take(repeated(rules_test), 2)) |> score
+reduce(expand, seed, take(repeated(rules), 18)) |> score
